@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
+# Set page configuration
+st.set_page_config(layout="wide")
+
 # Initialize session state for settings and data
 if "settings" not in st.session_state:
     st.session_state.settings = {
@@ -49,12 +52,17 @@ for date in dates:
 
 # User Input: Editable calendar-like view
 st.title("Bi-Weekly Pay Calculator")
+
+# Display Total Bi-Weekly Salary on Top
+if "biweekly_pay" in st.session_state:
+    st.subheader(f"Total Bi-Weekly Pay: **${st.session_state['biweekly_pay']:.2f}**")
+
 st.write("Click on a day to adjust your work hours:")
 
-# Horizontal calendar layout
-columns = st.columns(7)  # 7 days per row (1 week)
+# Full-width layout for calendar
+columns = st.columns(14)  # 14 days per row (bi-weekly view)
 for i, date in enumerate(dates):
-    col = columns[i % 7]  # Wrap to new row every 7 days
+    col = columns[i % 14]  # Display all 14 days in one row
     date_str = date.strftime("%Y-%m-%d")
     day_data = st.session_state.data[date_str]
 
@@ -86,7 +94,7 @@ if "edit_date" in st.session_state:
         st.session_state.data[edit_date]["start_time"] = f"{start_hour}:{start_minute} {start_ampm}"
         st.session_state.data[edit_date]["end_time"] = f"{end_hour}:{end_minute} {end_ampm}"
         del st.session_state["edit_date"]
-        st.experimental_rerun()
+        
 
 # Convert data into DataFrame for calculation
 unlocked_data = []
@@ -99,11 +107,13 @@ if unlocked_data:
     unlocked_df = pd.DataFrame(unlocked_data)
     calculated_df = calculate_biweekly_pay(unlocked_df, st.session_state.settings["pay"])
 
+    # Store total bi-weekly pay in session state
+    st.session_state["biweekly_pay"] = calculated_df['Pay'].sum()
+
     # Display Results
     st.subheader("Bi-Weekly Pay Details")
     st.write(f"Hourly Pay: ${st.session_state.settings['pay']}")
     st.write(f"Week Start Date: {week_start_date.strftime('%Y-%m-%d')}")
-    st.write(f"Total Bi-Weekly Pay: **${calculated_df['Pay'].sum():,.2f}**")
 
     # Calendar View
     st.subheader("Calendar View")
