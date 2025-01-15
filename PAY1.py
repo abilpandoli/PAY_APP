@@ -43,16 +43,13 @@ for date in dates:
     date_str = date.strftime("%Y-%m-%d")
     if date_str not in st.session_state.data:
         st.session_state.data[date_str] = {
-            "worked": False,
-            "start_time": 8,
-            "end_time": 16,
+            "start_time": "08:00 AM",
+            "end_time": "04:00 PM",
         }
 
-# User Input: Editable horizontal calendar-like view with tiles
+# User Input: Editable calendar-like view
 st.title("Bi-Weekly Pay Calculator")
-st.write("Click on a day to unlock or lock it. Adjust your work hours for unlocked days:")
-
-unlocked_data = []
+st.write("Click on a day to adjust your work hours:")
 
 # Horizontal calendar layout
 columns = st.columns(7)  # 7 days per row (1 week)
@@ -62,39 +59,42 @@ for i, date in enumerate(dates):
     day_data = st.session_state.data[date_str]
 
     with col:
-        # Display a toggleable tile for the day
-        tile_label = (
-            f"🔓 {date.strftime('%a, %b %d')}" if day_data["worked"] else f"🔒 {date.strftime('%a, %b %d')}"
-        )
-        tile_color = "background-color: #4CAF50; color: white;" if day_data["worked"] else "background-color: #F44336; color: white;"
-        button_placeholder = st.empty()
+        # Display day tile
+        tile_label = f"{date.strftime('%a, %b %d')}\n{day_data['start_time']} - {day_data['end_time']}"
+        if st.button(tile_label, key=f"edit_{date_str}"):
+            # Open pop-up for time editing
+            st.session_state.edit_date = date_str
 
-        # Use a custom button style for the tile
-        if button_placeholder.button(
-            tile_label,
-            key=f"toggle_{date_str}",
-        ):
-            st.session_state.data[date_str]["worked"] = not day_data["worked"]
+# Show time editor if a date is selected for editing
+if "edit_date" in st.session_state:
+    edit_date = st.session_state.edit_date
+    st.subheader(f"Edit Work Hours for {edit_date}")
 
-        # If the day is unlocked, show sliders for Start Time and End Time
-        if st.session_state.data[date_str]["worked"]:
-            start_time = st.slider(
-                "Start", min_value=0, max_value=24, value=day_data["start_time"], step=1, key=f"start_{date_str}"
-            )
-            end_time = st.slider(
-                "End", min_value=0, max_value=24, value=day_data["end_time"], step=1, key=f"end_{date_str}"
-            )
-            st.session_state.data[date_str]["start_time"] = start_time
-            st.session_state.data[date_str]["end_time"] = end_time
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        start_hour = st.selectbox("Start Hour", [f"{h:02}" for h in range(1, 13)], key="start_hour")
+        end_hour = st.selectbox("End Hour", [f"{h:02}" for h in range(1, 13)], key="end_hour")
+    with col2:
+        start_minute = st.selectbox("Start Minute", [f"{m:02}" for m in range(0, 60)], key="start_minute")
+        end_minute = st.selectbox("End Minute", [f"{m:02}" for m in range(0, 60)], key="end_minute")
+    with col3:
+        start_ampm = st.selectbox("AM/PM", ["AM", "PM"], key="start_ampm")
+        end_ampm = st.selectbox("AM/PM", ["AM", "PM"], key="end_ampm")
 
-            # Append unlocked data
-            unlocked_data.append({
-                "Date": date,
-                "Start Time": datetime.combine(date, datetime.min.time()) + timedelta(hours=start_time),
-                "End Time": datetime.combine(date, datetime.min.time()) + timedelta(hours=end_time),
-            })
+    if st.button("Save Changes"):
+        # Update session state with the new times
+        st.session_state.data[edit_date]["start_time"] = f"{start_hour}:{start_minute} {start_ampm}"
+        st.session_state.data[edit_date]["end_time"] = f"{end_hour}:{end_minute} {end_ampm}"
+        del st.session_state["edit_date"]
+        st.experimental_rerun()
 
-# Convert unlocked data into DataFrame
+# Convert data into DataFrame for calculation
+unlocked_data = []
+for date, data in st.session_state.data.items():
+    start_dt = datetime.strptime(f"{date} {data['start_time']}", "%Y-%m-%d %I:%M %p")
+    end_dt = datetime.strptime(f"{date} {data['end_time']}", "%Y-%m-%d %I:%M %p")
+    unlocked_data.append({"Date": date, "Start Time": start_dt, "End Time": end_dt})
+
 if unlocked_data:
     unlocked_df = pd.DataFrame(unlocked_data)
     calculated_df = calculate_biweekly_pay(unlocked_df, st.session_state.settings["pay"])
@@ -109,4 +109,4 @@ if unlocked_data:
     st.subheader("Calendar View")
     st.table(calculated_df[["Date", "Start Time", "End Time", "Total Hours", "Pay"]])
 else:
-    st.write("No days unlocked. Click on a day to unlock it.")
+    st.write("No data available. Adjust work hours to see details.")
